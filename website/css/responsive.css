@@ -1,0 +1,79 @@
+/* GoPoint Landing Page - Responsive Layout Adjustments */
+
+@media (max-width: 1024px) {
+  .demo-content-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .telemetry-panel {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: space-between;
+  }
+  
+  .metric-cards-grid {
+    grid-template-columns: repeat(4, 1fr);
+    width: 100%;
+  }
+  
+  .surface-section {
+    width: 100%;
+  }
+
+  .hero h1 {
+    font-size: 3rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .nav-links {
+    display: none;
+  }
+  
+  .hero {
+    padding: 120px 0 60px 0;
+  }
+
+  .hero h1 {
+    font-size: 2.25rem;
+  }
+
+  .hero-subtitle {
+    font-size: 1.05rem;
+  }
+
+  .metric-cards-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .features-grid, .presets-grid, .pricing-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .hero-meta {
+    flex-direction: column;
+    gap: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .container {
+    padding: 0 16px;
+  }
+
+  .btn {
+    width: 100%;
+  }
+
+  .hero-cta-group {
+    flex-direction: column;
+  }
+
+  .prompt-box-container {
+    padding: 6px 10px;
+  }
+
+  .prompt-input {
+    font-size: 0.95rem;
+  }
+}

@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+env/
+build/
+develop-eggs/
+dist/
+*.zip
+*.exe
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Environment variables
+.env
+
+# PyInstaller
+*.manifest
+*.spec.bak
+
+# PyTest
+.pytest_cache/
+
+# IDE / OS
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

@@ -1,0 +1,5 @@
+PyQt5>=5.15
+PyQtWebEngine>=5.15
+requests>=2.31
+anthropic>=0.40
+python-dotenv>=1.0

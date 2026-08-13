@@ -1,0 +1,49 @@
+name: Build and Publish GoPoint Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.9
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+          cache: 'pip'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-build.txt
+
+      - name: Build Executable with PyInstaller
+        run: |
+          pyinstaller route_planner.spec --noconfirm
+
+      - name: Package Distributable Zip Archive
+        run: |
+          powershell Compress-Archive -Path "dist/RoutePlanner/*" -DestinationPath "dist/GoPoint-Windows-x64.zip" -Force
+
+      - name: Create GitHub Release & Upload Asset
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/GoPoint-Windows-x64.zip
+            dist/RoutePlanner/RoutePlanner.exe
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

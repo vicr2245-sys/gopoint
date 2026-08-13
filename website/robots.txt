@@ -1,0 +1,6 @@
+# GoPoint Robots.txt
+User-agent: *
+Allow: /
+
+# Sitemap Location
+Sitemap: https://www.gopoint.store/sitemap.xml
