@@ -113,45 +113,6 @@ MAP_HTML = """
       width: 14px;
       height: 14px;
     }
-    .route-play-control {
-      background: #ffffff;
-      border-radius: 4px;
-      border: 2px solid rgba(0, 0, 0, 0.2);
-      box-shadow: 0 1px 5px rgba(0, 0, 0, 0.4);
-      cursor: pointer;
-      width: 32px;
-      height: 32px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin-top: 10px !important;
-      transition: background 0.2s, border-color 0.2s;
-    }
-    .route-play-control:hover {
-      background: #f8fafc;
-      border-color: rgba(0, 0, 0, 0.35);
-    }
-    .route-play-btn {
-      background: none;
-      border: none;
-      cursor: pointer;
-      padding: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      width: 100%;
-      height: 100%;
-    }
-    body.dark-theme .route-play-control {
-      background: #1e293b;
-      border: 1px solid rgba(255, 255, 255, 0.2);
-    }
-    body.dark-theme .route-play-control:hover {
-      background: #334155;
-    }
-    body.dark-theme .route-play-btn svg {
-      fill: #f8fafc;
-    }
     .anim-rider-dot {
       background: #22c55e;
       border: 3px solid #ffffff;
@@ -349,23 +310,6 @@ MAP_HTML = """
     currentTileLayer.addTo(map);
 
     L.control.layers(baseMaps, null, { position: 'topright' }).addTo(map);
-
-    var routePlayControl = L.control({ position: 'topright' });
-    routePlayControl.onAdd = function(map) {
-      var div = L.DomUtil.create('div', 'leaflet-control-layers leaflet-control route-play-control');
-      div.title = "Play / Pause Route Animation";
-      div.innerHTML = '<button class="route-play-btn" id="routePlayBtn" aria-label="Play route animation">' +
-                      '<svg class="play-icon" viewBox="0 0 24 24" width="16" height="16" fill="#1e293b"><polygon points="6,4 20,12 6,20"/></svg>' +
-                      '<svg class="pause-icon" viewBox="0 0 24 24" width="16" height="16" fill="#1e293b" style="display:none;"><rect x="5" y="4" width="4" height="16"/><rect x="15" y="4" width="4" height="16"/></svg>' +
-                      '</button>';
-      L.DomEvent.disableClickPropagation(div);
-      div.onclick = function(e) {
-        e.preventDefault();
-        toggleRoutePlayback();
-      };
-      return div;
-    };
-    routePlayControl.addTo(map);
 
     map.on('baselayerchange', function(e) {
       var icon = document.querySelector('.leaflet-control-layers-toggle');
@@ -836,24 +780,10 @@ MAP_HTML = """
           bridge.setManualStart(e.latlng.lat, e.latlng.lng);
           return;
         }
-        // If clicking near start point (< 100 meters), auto-fuse Start & Finish (S/F)
-        if (currentStartPoint && distanceMeters([currentStartPoint.lon, currentStartPoint.lat], [e.latlng.lng, e.latlng.lat]) < 100) {
+        // If clicking directly on start point (< 20 meters), auto-fuse Start & Finish (S/F)
+        if (currentStartPoint && distanceMeters([currentStartPoint.lon, currentStartPoint.lat], [e.latlng.lng, e.latlng.lat]) < 20) {
           bridge.fuseStartFinish();
           return;
-        }
-        // If clicking on an existing route segment (< 30 meters), cut the route at that location
-        if (primaryCoords && primaryCoords.length >= 2) {
-          var clickPt = [e.latlng.lng, e.latlng.lat];
-          var minRouteDist = Infinity;
-          for (var i = 0; i < primaryCoords.length - 1; i++) {
-            var proj = projectPointToSegment(clickPt, primaryCoords[i], primaryCoords[i + 1]);
-            var d = distanceMeters(clickPt, proj);
-            if (d < minRouteDist) minRouteDist = d;
-          }
-          if (minRouteDist < 30) {
-            bridge.setManualFinish(e.latlng.lat, e.latlng.lng);
-            return;
-          }
         }
         var insertIndex = currentViaPoints ? currentViaPoints.length : 0;
         bridge.addWaypoint(e.latlng.lat, e.latlng.lng, insertIndex);
@@ -871,12 +801,6 @@ MAP_HTML = """
 
       var lat = e.latlng.lat;
       var lon = e.latlng.lng;
-
-      // If near start point (< 100 meters), auto-fuse S/F
-      if (currentStartPoint && distanceMeters([currentStartPoint.lon, currentStartPoint.lat], [lon, lat]) < 100) {
-        bridge.fuseStartFinish();
-        return;
-      }
 
       var content = document.createElement('div');
       content.className = 'map-context-menu';
@@ -941,7 +865,7 @@ MAP_HTML = """
 
       finishMarker.on('dragend', function(event) {
         var latlng = event.target.getLatLng();
-        if (currentStartPoint && distanceMeters([currentStartPoint.lon, currentStartPoint.lat], [latlng.lng, latlng.lat]) < 100) {
+        if (currentStartPoint && distanceMeters([currentStartPoint.lon, currentStartPoint.lat], [latlng.lng, latlng.lat]) < 35) {
           if (editBridge) editBridge.fuseStartFinish();
           return;
         }

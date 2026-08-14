@@ -73,13 +73,13 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name='RoutePlanner',
+    name='GoPoint',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
     upx=False,
-    console=True,   # see notes above — flip to False once you've confirmed it works
-    icon=None,      # e.g. icon='app.ico' once you have one
+    console=False,
+    icon='gopoint_icon.ico',
 )
 
 coll = COLLECT(
@@ -90,5 +90,5 @@ coll = COLLECT(
     strip=False,
     upx=False,
     upx_exclude=[],
-    name='RoutePlanner',
+    name='GoPoint',
 )

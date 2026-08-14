@@ -29,7 +29,7 @@ Respond with ONLY a JSON object, no preamble, no markdown fences. The JSON must 
   "avoid_main_roads": boolean,
   "avoid_highways": boolean,
   "avoid_ferries": boolean,
-  "surface_preference": string or null (e.g. "paved", "gravel", "trail", null if unspecified)
+  "surface_preference": string or null (e.g. "paved", "unpaved", "gravel", "trail", null if unspecified)
 }
 
 Rules:
@@ -45,6 +45,7 @@ Rules:
 - If the user asks for a route "from", "starting at", or "near" a place but gives no destination, is_loop is true and end_location is null.
 - target_elevation_gain_m: only set this when the user gives an actual NUMBER (e.g. "aim for 500m of elevation", "at least 300m of climbing", "around 800ft of gain" -> convert feet to meters). If they only say "hilly" or "flat" with no number, leave this null and rely on elevation_preference instead. When target_elevation_gain_m is set, also set elevation_preference to "hilly" (a numeric climbing target implies they want a hilly route, not a flat one).
 - This target is inherently approximate: real terrain often can't hit an exact climbing figure near a given start point. Extract the number faithfully regardless — the routing layer handles the "how close can we actually get" part, not you.
+- surface_preference: if the user requests "unpaved", "off-road", "dirt", "gravel", "avoid pavement", or "no paved roads", set surface_preference to "unpaved" (or "gravel"/"trail" if specified). NEVER set surface_preference to "paved" when the user asks for unpaved or asks to avoid paved roads.
 """
 
 
@@ -104,12 +105,14 @@ def fallback_parse_prompt(prompt: str) -> RouteRequest:
         elevation_pref = ElevationPreference.HILLY
 
     surface_pref = None
-    if "paved" in p_lower or "asphalt" in p_lower:
-        surface_pref = "paved"
+    if any(w in p_lower for w in ["unpaved", "offroad", "off-road", "avoid paved", "no paved", "non-paved", "not paved"]):
+        surface_pref = "unpaved"
     elif "gravel" in p_lower:
         surface_pref = "gravel"
     elif "dirt" in p_lower or "trail" in p_lower:
         surface_pref = "trail"
+    elif re.search(r'\b(?:paved|asphalt|tarmac)\b', p_lower):
+        surface_pref = "paved"
 
     avoid_main = "quiet" in p_lower or "avoid busy" in p_lower or "safe" in p_lower
     avoid_highways = True
@@ -125,7 +128,7 @@ def fallback_parse_prompt(prompt: str) -> RouteRequest:
         is_loop = False
     else:
         # Check prepositions first (in, near, around, from, at, by, starting at, outside, through)
-        matches = list(re.finditer(r'\b(?:from|starting at|start at|in|near|around|at|by|through|outside)\s+([A-Za-z0-9\s]+)', prompt, re.IGNORECASE))
+        matches = list(re.finditer(r'\b(?:from|starting at|start at|in|near|around|at|by|through|outside)\s+([\w\s\-\.]+)', prompt, re.IGNORECASE))
         if matches:
             best_match = matches[0]
             for m in matches:
@@ -163,66 +166,114 @@ def fallback_parse_prompt(prompt: str) -> RouteRequest:
     )
 
 
+import logging
+logging.getLogger("httpx").setLevel(logging.WARNING)
+
+
+def _clean_location_string(loc_str: str) -> str:
+    """
+    Clean location strings extracted from natural language prompts.
+    Strips leading articles/prepositions ("the", "a", "an", "in", "near", "around")
+    and trailing modifier words ("area", "region", "district", "municipality",
+    "only", "on", "just", "preferring", "with", "stick to").
+    """
+    if not loc_str or loc_str == "current_location":
+        return loc_str
+
+    loc = loc_str.strip()
+
+    # Cut off trailing clause starting with condition keywords
+    loc = re.split(
+        r'\b(?:only|on|just|prefer|preferring|with|stick|avoid|fairly|trail|ride|run|bike|cycling|hike|walk|loop|route|road|flat|hilly|gravel|paved|asphalt)\b',
+        loc,
+        flags=re.IGNORECASE,
+    )[0].strip()
+
+    # Strip trailing area noise words
+    loc = re.sub(
+        r'\b(?:area|region|district|municipality|city|vicinity|neighborhood|neighbourhood)\b',
+        '',
+        loc,
+        flags=re.IGNORECASE,
+    ).strip()
+
+    # Strip leading articles & prepositions
+    loc = re.sub(
+        r'^(?:the|a|an|in|near|around|at|from|starting at|start at|by|outside|through)\s+',
+        '',
+        loc,
+        flags=re.IGNORECASE,
+    ).strip()
+
+    loc = re.sub(
+        r'\b(?:the|area|region|city|town|village|of)\b',
+        '',
+        loc,
+        flags=re.IGNORECASE,
+    ).strip()
+
+    return loc or loc_str
+
+
 def parse_prompt(prompt: str, api_key: Optional[str] = None) -> RouteRequest:
     """
     Parse a natural language route request into a RouteRequest.
     Tries Anthropic API first; if unavailable or failing, falls back to the
     local rule-based parser so route planning always succeeds.
     """
+    req = None
     key = api_key or os.environ.get("ANTHROPIC_API_KEY")
-    if not key:
-        return fallback_parse_prompt(prompt)
+    if key:
+        try:
+            client = anthropic.Anthropic(api_key=key)
+            models_to_try = [
+                "claude-3-5-sonnet-20240620",
+                "claude-3-haiku-20240307",
+                "claude-3-opus-20240229",
+            ]
+            response = None
+            for model_name in models_to_try:
+                try:
+                    response = client.messages.create(
+                        model=model_name,
+                        max_tokens=500,
+                        system=SYSTEM_PROMPT,
+                        messages=[{"role": "user", "content": prompt}],
+                    )
+                    break
+                except Exception:
+                    continue
 
-    try:
-        client = anthropic.Anthropic(api_key=key)
-        models_to_try = [
-            "claude-3-5-sonnet-latest",
-            "claude-3-5-sonnet-20241022",
-            "claude-3-5-sonnet-20240620",
-            "claude-3-5-haiku-latest",
-            "claude-3-5-haiku-20241022",
-            "claude-3-haiku-20240307",
-            "claude-3-7-sonnet-latest",
-            "claude-3-opus-20240229",
-        ]
-        response = None
-        for model_name in models_to_try:
-            try:
-                response = client.messages.create(
-                    model=model_name,
-                    max_tokens=500,
-                    system=SYSTEM_PROMPT,
-                    messages=[{"role": "user", "content": prompt}],
+            if response is not None:
+                text = "".join(block.text for block in response.content if block.type == "text").strip()
+                text = text.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+                data = json.loads(text)
+                req = RouteRequest(
+                    activity=Activity(data["activity"]),
+                    start_location=data["start_location"],
+                    end_location=data.get("end_location"),
+                    is_loop=bool(data["is_loop"]),
+                    target_distance_km=data.get("target_distance_km"),
+                    elevation_preference=ElevationPreference(data["elevation_preference"]),
+                    target_elevation_gain_m=data.get("target_elevation_gain_m"),
+                    avoid_main_roads=bool(data["avoid_main_roads"]),
+                    avoid_highways=bool(data["avoid_highways"]),
+                    avoid_ferries=bool(data.get("avoid_ferries", True)),
+                    surface_preference=data.get("surface_preference"),
+                    raw_prompt=prompt,
                 )
-                break
-            except Exception:
-                continue
+        except Exception:
+            pass
 
-        if response is None:
-            return fallback_parse_prompt(prompt)
+    if req is None:
+        req = fallback_parse_prompt(prompt)
 
-        text = "".join(block.text for block in response.content if block.type == "text").strip()
-        text = text.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+    if req.start_location:
+        req.start_location = _clean_location_string(req.start_location)
+    if req.end_location:
+        req.end_location = _clean_location_string(req.end_location)
 
-        data = json.loads(text)
-        return RouteRequest(
-            activity=Activity(data["activity"]),
-            start_location=data["start_location"],
-            end_location=data.get("end_location"),
-            is_loop=bool(data["is_loop"]),
-            target_distance_km=data.get("target_distance_km"),
-            elevation_preference=ElevationPreference(data["elevation_preference"]),
-            target_elevation_gain_m=data.get("target_elevation_gain_m"),
-            avoid_main_roads=bool(data["avoid_main_roads"]),
-            avoid_highways=bool(data["avoid_highways"]),
-            avoid_ferries=bool(data.get("avoid_ferries", True)),
-            surface_preference=data.get("surface_preference"),
-            raw_prompt=prompt,
-        )
-    except Exception:
-        # On any API error (credit balance low, invalid key format, rate limit, network down),
-        # fall back to local parser instead of crashing the UI.
-        return fallback_parse_prompt(prompt)
+    return req
 
 
 if __name__ == "__main__":

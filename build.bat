@@ -46,20 +46,21 @@ if errorlevel 1 (
 )
 
 echo.
-echo Closing any running RoutePlanner processes...
+echo Closing any running GoPoint processes...
+taskkill /f /im GoPoint.exe 2>nul
 taskkill /f /im RoutePlanner.exe 2>nul
 
 echo.
 echo Removing previous build output...
-if exist dist\RoutePlanner\.env (
+if exist dist\GoPoint\.env (
     echo Preserving your existing .env so this rebuild doesn't wipe your API keys...
-    copy /Y dist\RoutePlanner\.env "%TEMP%\route_planner_env_backup.txt" >nul
+    copy /Y dist\GoPoint\.env "%TEMP%\gopoint_env_backup.txt" >nul
 )
 if exist build rmdir /s /q build
 if exist dist rmdir /s /q dist
 
 echo.
-echo Building RoutePlanner.exe ...
+echo Building GoPoint.exe ...
 %PYTHON_CMD% -m PyInstaller route_planner.spec --noconfirm
 
 if errorlevel 1 (
@@ -71,22 +72,22 @@ if errorlevel 1 (
 echo.
 echo Copying env.example.txt into the build folder...
 if exist env.example.txt (
-    copy /Y env.example.txt dist\RoutePlanner\env.example.txt >nul
+    copy /Y env.example.txt dist\GoPoint\env.example.txt >nul
 ) else (
     echo env.example.txt was not found; skipping example environment file.
 )
 
-if exist "%TEMP%\route_planner_env_backup.txt" (
+if exist "%TEMP%\gopoint_env_backup.txt" (
     echo Restoring your .env from before this rebuild...
-    copy /Y "%TEMP%\route_planner_env_backup.txt" dist\RoutePlanner\.env >nul
-    del "%TEMP%\route_planner_env_backup.txt" >nul
+    copy /Y "%TEMP%\gopoint_env_backup.txt" dist\GoPoint\.env >nul
+    del "%TEMP%\gopoint_env_backup.txt" >nul
 )
 
 echo.
 echo ============================================
 echo  Build complete!
 echo.
-echo  Your app is in:  dist\RoutePlanner\RoutePlanner.exe
+echo  Your app is in:  dist\GoPoint\GoPoint.exe
 echo.
 echo  First time only: copy env.example.txt to .env in
 echo  that same folder and fill in your API keys.

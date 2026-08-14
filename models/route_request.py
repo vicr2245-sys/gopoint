@@ -36,6 +36,7 @@ class RouteRequest:
     max_distance_km: Optional[float] = None
     via_points: list[tuple[float, float]] = field(default_factory=list)
     auto_close_loop: bool = True            # editing-only: force via_points to close back to start
+    is_manual_route: bool = False           # preserve click order for map-created routes
     elevation_preference: ElevationPreference = ElevationPreference.NO_PREFERENCE
     target_elevation_gain_m: Optional[float] = None  # explicit numeric target, e.g. "aim for 500m of climbing"
     avoid_main_roads: bool = False
@@ -53,6 +54,8 @@ class RouteRequest:
 
     def ors_profile(self) -> str:
         """Map our Activity enum to an OpenRouteService profile string."""
+        if self.activity == Activity.CYCLING_REGULAR and self.surface_preference in ("unpaved", "gravel", "trail"):
+            return "cycling-mountain"
         mapping = {
             Activity.CYCLING_ROAD: "cycling-road",
             Activity.CYCLING_MOUNTAIN: "cycling-mountain",

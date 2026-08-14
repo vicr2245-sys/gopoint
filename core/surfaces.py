@@ -85,14 +85,36 @@ def surface_styles_for_ui() -> dict[str, str]:
     }
 
 
+import re
+
+
 def surface_preference_bonus(composition: dict[str, float], preference: str) -> float:
-    preference_lower = preference.lower()
+    pref = preference.lower()
     matching_percent = 0.0
+
+    unpaved_keys = {
+        "unpaved", "gravel", "compacted_gravel", "fine_gravel",
+        "dirt", "ground", "sand", "woodchips", "grass", "grass_paver",
+        "cobblestone", "paving_stones"
+    }
+    paved_keys = {"paved", "asphalt", "concrete"}
+    gravel_keys = {"gravel", "compacted_gravel", "fine_gravel"}
+    trail_keys = {"dirt", "ground", "grass", "woodchips", "sand", "unpaved"}
 
     for label, percent in composition.items():
         style = _style_for_label(label)
-        if any(keyword in preference_lower for keyword in style.keywords):
+        key = style.key
+        if pref == "unpaved" and key in unpaved_keys:
             matching_percent += percent
+        elif pref == "paved" and key in paved_keys:
+            matching_percent += percent
+        elif pref == "gravel" and key in gravel_keys:
+            matching_percent += percent
+        elif pref == "trail" and key in trail_keys:
+            matching_percent += percent
+        else:
+            if any(re.search(r'\b' + re.escape(kw) + r'\b', pref) for kw in style.keywords):
+                matching_percent += percent
 
     return (matching_percent / 100.0) * 3.0
 

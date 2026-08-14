@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Optional
 
 from PyQt5.QtCore import QEasingCurve, QPointF, QPropertyAnimation, QRectF, QThread, QTimer, Qt, pyqtProperty, pyqtSignal
-from PyQt5.QtGui import QBrush, QColor, QFont, QFontMetricsF, QPainter, QPainterPath, QPen
+from PyQt5.QtGui import QBrush, QColor, QFont, QFontMetricsF, QIcon, QPainter, QPainterPath, QPen
 from PyQt5.QtWidgets import (
     QCheckBox,
     QDialog,
@@ -1075,6 +1075,7 @@ class MainWindow(QMainWindow):
 
     def _build_ui(self):
         self.setWindowTitle("GoPoint — AI Route Planner")
+        self.setWindowIcon(QIcon("gopoint_icon.png"))
         self.resize(1200, 800)
         self.setStyleSheet(DARK_APP_STYLESHEET if self.current_theme == "dark" else LIGHT_APP_STYLESHEET)
 
@@ -1785,12 +1786,15 @@ class MainWindow(QMainWindow):
         self._ensure_via_points_seeded()
         via_points = list(self.current_request.via_points)
 
-        if self.best_route and self.best_route.points and len(via_points) > 0:
-            index = self._find_best_waypoint_insert_index(lat, lon, via_points)
+        # If index is at or beyond the end of via_points (extending the route), append to the end
+        if index >= len(via_points):
+            via_points.append((lat, lon))
+        elif self.best_route and self.best_route.points and len(via_points) > 0:
+            insert_idx = self._find_best_waypoint_insert_index(lat, lon, via_points)
+            via_points.insert(insert_idx, (lat, lon))
         else:
-            index = max(0, min(index, len(via_points)))
-
-        via_points.insert(index, (lat, lon))
+            insert_idx = max(0, min(index, len(via_points)))
+            via_points.insert(insert_idx, (lat, lon))
         self._start_route_edit(via_points, "Replanning through the new waypoint...")
 
     def _on_waypoint_moved(self, old_index: int, new_index: int, lat: float, lon: float):

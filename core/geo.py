@@ -33,14 +33,14 @@ def cumulative_distances_km(points: list[RoutePoint]) -> list[float]:
 def trim_trailing_overshoot(points: list[RoutePoint], end_lat: float, end_lon: float) -> list[RoutePoint]:
     """
     Ensures a route terminates precisely at (end_lat, end_lon) by finding the
-    earliest point near the end of the route that reaches (end_lat, end_lon)
-    and trimming any trailing overshoot nodes returned by routing engines.
+    point of closest approach near the end of the route and trimming any trailing
+    overshoot nodes returned by routing engines beyond that point.
     """
     if not points or len(points) < 3:
         return points
 
-    # Search near the tail of the route (last 30% of points or last 100 points)
-    search_start = max(1, len(points) - max(100, int(len(points) * 0.3)))
+    # Search near the tail of the route (at most the last 100 points, but never the first half)
+    search_start = max(int(len(points) * 0.5), len(points) - 100)
     tail_dists = [
         (idx, haversine_distance_m(points[idx].lat, points[idx].lon, end_lat, end_lon))
         for idx in range(search_start, len(points))
@@ -48,20 +48,11 @@ def trim_trailing_overshoot(points: list[RoutePoint], end_lat: float, end_lon: f
     if not tail_dists:
         return points
 
-    min_dist = min(d for _, d in tail_dists)
+    # Find the point of closest approach to (end_lat, end_lon) near the tail
+    min_idx, _ = min(tail_dists, key=lambda item: item[1])
 
-    # Pick the FIRST point in the tail that comes within max(35m, min_dist + 15m) of the target.
-    # This prevents the route from overshooting past the target to a distant node/turnaround
-    # before returning or terminating.
-    threshold_m = max(35.0, min_dist + 15.0)
-    best_idx = tail_dists[-1][0]
-    for idx, d in tail_dists:
-        if d <= threshold_m:
-            best_idx = idx
-            break
-
-    if best_idx < len(points) - 1:
-        points = points[: max(2, best_idx + 1)]
+    if min_idx < len(points) - 1:
+        points = points[: max(2, min_idx + 1)]
 
     # Snap the final point precisely to (end_lat, end_lon)
     last_elev = points[-1].elevation_m
@@ -134,8 +125,26 @@ def trim_overlapping_spurs(route, max_spur_length_km: float = 12.0):
     if not modified:
         return route
 
+    # A closed, intentional out-and-back route has the same coordinate at
+    # its beginning and end.  The generic overlap detector above cannot
+    # distinguish that from a spur which spans the whole route, and would
+    # otherwise reduce it to two identical points.  Never replace a route
+    # with a degenerate line (or discard virtually all of a closed route).
+    # This is a last line of defence for any future caller; explicit
+    # waypoint/manual routes should not call this helper in the first place.
+    original_cumulative = cumulative_distances_km(points)
+    original_distance_km = original_cumulative[-1] if original_cumulative else 0.0
     new_cumulative = cumulative_distances_km(new_points)
     total_dist_km = new_cumulative[-1] if new_cumulative else 0.0
+    is_closed_route = haversine_distance_m(
+        points[0].lat, points[0].lon, points[-1].lat, points[-1].lon
+    ) < 45.0
+    if (
+        len(new_points) < 3
+        or total_dist_km <= 0.001
+        or (is_closed_route and original_distance_km > 0 and total_dist_km < original_distance_km * 0.25)
+    ):
+        return route
     
     elevation_gain = None
     if any(p.elevation_m is not None for p in new_points):
