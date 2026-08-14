@@ -43,17 +43,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const checkoutBtns = document.querySelectorAll('.trigger-checkout');
   checkoutBtns.forEach(btn => {
     btn.addEventListener('click', (e) => {
-      e.preventDefault();
-      const checkoutUrl = window.GoPointConfig.stripeCheckoutUrl;
-
-      if (checkoutUrl && !checkoutUrl.includes('your_stripe_payment_link_here')) {
+      const checkoutUrl = window.GoPointConfig.stripeCheckoutUrl || 'https://buy.stripe.com/aFa7sN5J82ec7zq99Qdby01';
+      if (checkoutUrl) {
         window.location.href = checkoutUrl;
-      } else {
-        const planName = btn.getAttribute('data-plan') || 'GoPoint Pro License';
-        window.showToast(`Selected <b>${planName}</b>. Update <code>GoPointConfig.stripeCheckoutUrl</code> in <code>website/js/app.js</code>.`);
-        setTimeout(() => {
-          alert(`🛒 Stripe Checkout Setup\n\nTo connect your Stripe checkout:\nOpen website/js/app.js and replace window.GoPointConfig.stripeCheckoutUrl with your Stripe Payment Link URL.\n\nExample:\nstripeCheckoutUrl: 'https://buy.stripe.com/3cs28x...'`);
-        }, 300);
       }
     });
   });
