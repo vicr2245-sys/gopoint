@@ -1,8 +1,8 @@
 /* GoPoint Landing Page - Single-Page App Coordinator & Config */
 
 window.GoPointConfig = {
-  // Replace with your actual Stripe Payment Link or Checkout URL (e.g. 'https://buy.stripe.com/abc123xyz')
-  stripeCheckoutUrl: 'https://buy.stripe.com/your_stripe_payment_link_here',
+  // Stripe Payment Link
+  stripeCheckoutUrl: 'https://buy.stripe.com/aFa7sN5J82ec7zq99Qdby01',
   
   // Custom domain URL:
   domainUrl: 'https://www.gopoint.store',
