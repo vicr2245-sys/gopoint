@@ -160,7 +160,7 @@ from core.route_storage import load_route
 from core.route_storage import save_route as persist_route
 from core.surfaces import surface_color
 from core.weather import WeatherError, WeatherSummary, get_weather_summary
-from models.route_request import Activity, NormalizedRoute, RoutePoint, RouteRequest
+from models.route_request import Activity, NormalizedRoute, RoutePoint, RouteRequest, SurfaceSegment
 from ui.map_view import MapView
 from ui.saved_routes_dialog import SavedRoutesDialog
 from ui.settings_dialog import SettingsDialog
@@ -1653,27 +1653,75 @@ class MainWindow(QMainWindow):
         self.status_label.setVisible(True)
 
     def _on_manual_finish_selected(self, lat: float, lon: float):
-        """Accept setting a finish location (via right-click context menu or cut route)."""
+        """Accept setting a finish location (via right-click context menu, finish handle drag, or cut route)."""
         if not self.current_request:
             return
+
+        import copy
+        self.undo_stack.append((list(self.current_routes), self.best_route, copy.deepcopy(self.current_request)))
+        self.undo_button.setEnabled(True)
 
         self.current_request.end_location = f"{lat:.6f},{lon:.6f}"
         self.current_request.is_loop = False
         self.current_request.auto_close_loop = False
         self.map_view.set_finish_point(None, None)
 
-        # Truncate via_points to only keep points before the new finish location
         if self.best_route and self.best_route.points:
             from core.geo import haversine_distance_m
             pts = self.best_route.points
+            # Find the index of the point on the route closest to the cut click
             click_idx = min(range(len(pts)), key=lambda i: haversine_distance_m(pts[i].lat, pts[i].lon, lat, lon))
+            click_idx = max(1, click_idx)
 
+            cut_pts = pts[:click_idx + 1]
+
+            # Calculate total distance along cut points
+            cut_dist_m = sum(
+                haversine_distance_m(cut_pts[i-1].lat, cut_pts[i-1].lon, cut_pts[i].lat, cut_pts[i].lon)
+                for i in range(1, len(cut_pts))
+            )
+
+            # Calculate elevation gain along cut points
+            cut_ele_gain = sum(
+                max(0, cut_pts[i].ele - cut_pts[i-1].ele)
+                for i in range(1, len(cut_pts))
+                if cut_pts[i].ele is not None and cut_pts[i-1].ele is not None
+            )
+
+            # Trim surface segments to fit within the cut point index
+            cut_surfaces = []
+            for seg in getattr(self.best_route, "surface_segments", []):
+                if seg.start < click_idx:
+                    cut_surfaces.append(SurfaceSegment(
+                        start=seg.start,
+                        end=min(seg.end, click_idx),
+                        category=seg.category
+                    ))
+
+            cut_route = NormalizedRoute(
+                provider_name=self.best_route.provider_name,
+                distance_km=cut_dist_m / 1000.0,
+                duration_s=int(self.best_route.duration_s * (cut_dist_m / max(1.0, self.best_route.distance_km * 1000.0))),
+                elevation_gain_m=cut_ele_gain,
+                points=cut_pts,
+                surface_segments=cut_surfaces,
+            )
+
+            # Extract via_points that sit before the cut location
             new_via = []
             for vlat, vlon in self.current_request.via_points:
                 v_idx = min(range(len(pts)), key=lambda i: haversine_distance_m(pts[i].lat, pts[i].lon, vlat, vlon))
                 if v_idx < click_idx:
                     new_via.append((vlat, vlon))
             self.current_request.via_points = new_via
+
+            # Update application state with cut route
+            self.best_route = cut_route
+            self.current_routes = [cut_route]
+            self._apply_route_state([cut_route], cut_route, self.current_request, fit_bounds=False)
+            self.status_label.setText(f"Route cut to new finish. New length: {cut_route.distance_km:.1f} km.")
+            self.status_label.setVisible(True)
+            return
 
         if self.current_request.start_location and self.current_request.start_location != "Manual Start":
             self._start_route_edit(self.current_request.via_points, "Cutting route to new finish point...")
