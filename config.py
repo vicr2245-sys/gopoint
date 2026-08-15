@@ -19,7 +19,7 @@ from core.providers.osrm_provider import OSRMProvider
 # Keys the Settings dialog knows how to read/write. Anything else a user
 # has hand-added to .env (OSRM_BASE_URL, NOMINATIM_USER_AGENT, ...) is left
 # completely untouched by save_env_values below.
-MANAGED_ENV_KEYS = ("ANTHROPIC_API_KEY", "ORS_API_KEY", "MAPBOX_API_KEY", "APP_THEME")
+MANAGED_ENV_KEYS = ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY", "ORS_API_KEY", "MAPBOX_API_KEY", "APP_THEME")
 
 
 def get_app_theme() -> str:

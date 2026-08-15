@@ -24,11 +24,11 @@ class NominatimProvider(RouteProvider):
     name = "Nominatim"
 
     def geocode(self, place_name: str) -> tuple[float, float]:
-        # Try with countrycode bias (Norway) first for local searches
+        # Perform global search to resolve worldwide locations accurately
         try:
             resp = requests.get(
                 f"{BASE_URL}/search",
-                params={"q": place_name, "format": "json", "limit": 1, "countrycodes": "no"},
+                params={"q": place_name, "format": "json", "limit": 1},
                 headers={"User-Agent": USER_AGENT},
                 timeout=10,
             )
@@ -39,19 +39,7 @@ class NominatimProvider(RouteProvider):
         except Exception:
             pass
 
-        # Fallback to global search if no Norwegian match found
-        resp = requests.get(
-            f"{BASE_URL}/search",
-            params={"q": place_name, "format": "json", "limit": 1},
-            headers={"User-Agent": USER_AGENT},
-            timeout=10,
-        )
-        if resp.status_code != 200:
-            raise RouteProviderError(f"Nominatim geocode failed: {resp.status_code} {resp.text}")
-        results = resp.json()
-        if not results:
-            raise RouteProviderError(f"Nominatim found no results for '{place_name}'")
-        return (float(results[0]["lat"]), float(results[0]["lon"]))
+        raise RouteProviderError(f"Nominatim found no results for '{place_name}'")
 
     def get_route(
         self,

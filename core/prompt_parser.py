@@ -215,55 +215,126 @@ def _clean_location_string(loc_str: str) -> str:
     return loc or loc_str
 
 
+import requests
+
+
+def _build_request_from_dict(data: dict, prompt: str) -> RouteRequest:
+    return RouteRequest(
+        activity=Activity(data["activity"]),
+        start_location=data["start_location"],
+        end_location=data.get("end_location"),
+        is_loop=bool(data["is_loop"]),
+        target_distance_km=data.get("target_distance_km"),
+        elevation_preference=ElevationPreference(data["elevation_preference"]),
+        target_elevation_gain_m=data.get("target_elevation_gain_m"),
+        avoid_main_roads=bool(data["avoid_main_roads"]),
+        avoid_highways=bool(data["avoid_highways"]),
+        avoid_ferries=bool(data.get("avoid_ferries", True)),
+        surface_preference=data.get("surface_preference"),
+        raw_prompt=prompt,
+    )
+
+
+def _parse_with_openai(prompt: str, api_key: str) -> Optional[RouteRequest]:
+    try:
+        url = "https://api.openai.com/v1/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "model": "gpt-4o-mini",
+            "messages": [
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": prompt}
+            ],
+            "response_format": {"type": "json_object"},
+            "max_tokens": 500
+        }
+        resp = requests.post(url, json=payload, headers=headers, timeout=10)
+        if resp.status_code == 200:
+            content = resp.json()["choices"][0]["message"]["content"]
+            data = json.loads(content)
+            return _build_request_from_dict(data, prompt)
+    except Exception as e:
+        logging.warning("OpenAI prompt parsing failed: %s", e)
+    return None
+
+
+def _parse_with_gemini(prompt: str, api_key: str) -> Optional[RouteRequest]:
+    try:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}"
+        payload = {
+            "contents": [
+                {
+                    "parts": [
+                        {"text": SYSTEM_PROMPT + "\n\nUser request: " + prompt}
+                    ]
+                }
+            ],
+            "generationConfig": {
+                "response_mime_type": "application/json"
+            }
+        }
+        resp = requests.post(url, json=payload, timeout=10)
+        if resp.status_code == 200:
+            text = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
+            data = json.loads(text)
+            return _build_request_from_dict(data, prompt)
+    except Exception as e:
+        logging.warning("Gemini prompt parsing failed: %s", e)
+    return None
+
+
+def _parse_with_anthropic(prompt: str, api_key: str) -> Optional[RouteRequest]:
+    try:
+        client = anthropic.Anthropic(api_key=api_key)
+        models_to_try = [
+            "claude-3-5-sonnet-20240620",
+            "claude-3-haiku-20240307",
+            "claude-3-opus-20240229",
+        ]
+        for model_name in models_to_try:
+            try:
+                response = client.messages.create(
+                    model=model_name,
+                    max_tokens=500,
+                    system=SYSTEM_PROMPT,
+                    messages=[{"role": "user", "content": prompt}],
+                )
+                if response is not None:
+                    text = "".join(block.text for block in response.content if block.type == "text").strip()
+                    text = text.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+                    data = json.loads(text)
+                    return _build_request_from_dict(data, prompt)
+            except Exception:
+                continue
+    except Exception as e:
+        logging.warning("Anthropic prompt parsing failed: %s", e)
+    return None
+
+
 def parse_prompt(prompt: str, api_key: Optional[str] = None) -> RouteRequest:
     """
     Parse a natural language route request into a RouteRequest.
-    Tries Anthropic API first; if unavailable or failing, falls back to the
-    local rule-based parser so route planning always succeeds.
+    Supports Anthropic (Claude), OpenAI (ChatGPT), and Google (Gemini) APIs.
+    Falls back to local rule-based parser if no API key is set or available.
     """
     req = None
-    key = api_key or os.environ.get("ANTHROPIC_API_KEY")
-    if key:
-        try:
-            client = anthropic.Anthropic(api_key=key)
-            models_to_try = [
-                "claude-3-5-sonnet-20240620",
-                "claude-3-haiku-20240307",
-                "claude-3-opus-20240229",
-            ]
-            response = None
-            for model_name in models_to_try:
-                try:
-                    response = client.messages.create(
-                        model=model_name,
-                        max_tokens=500,
-                        system=SYSTEM_PROMPT,
-                        messages=[{"role": "user", "content": prompt}],
-                    )
-                    break
-                except Exception:
-                    continue
 
-            if response is not None:
-                text = "".join(block.text for block in response.content if block.type == "text").strip()
-                text = text.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
-                data = json.loads(text)
-                req = RouteRequest(
-                    activity=Activity(data["activity"]),
-                    start_location=data["start_location"],
-                    end_location=data.get("end_location"),
-                    is_loop=bool(data["is_loop"]),
-                    target_distance_km=data.get("target_distance_km"),
-                    elevation_preference=ElevationPreference(data["elevation_preference"]),
-                    target_elevation_gain_m=data.get("target_elevation_gain_m"),
-                    avoid_main_roads=bool(data["avoid_main_roads"]),
-                    avoid_highways=bool(data["avoid_highways"]),
-                    avoid_ferries=bool(data.get("avoid_ferries", True)),
-                    surface_preference=data.get("surface_preference"),
-                    raw_prompt=prompt,
-                )
-        except Exception:
-            pass
+    # Check for specific API keys in environment or passed api_key
+    gemini_key = os.environ.get("GEMINI_API_KEY")
+    openai_key = os.environ.get("OPENAI_API_KEY")
+    anthropic_key = api_key or os.environ.get("ANTHROPIC_API_KEY")
+
+    if gemini_key:
+        req = _parse_with_gemini(prompt, gemini_key)
+
+    if req is None and openai_key:
+        req = _parse_with_openai(prompt, openai_key)
+
+    if req is None and anthropic_key:
+        req = _parse_with_anthropic(prompt, anthropic_key)
 
     if req is None:
         req = fallback_parse_prompt(prompt)

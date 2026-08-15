@@ -22,9 +22,23 @@ from config import mask_key, read_current_env_values, save_env_values
 
 FIELDS = [
     {
+        "key": "GEMINI_API_KEY",
+        "label": "Google Gemini API Key (Optional AI Provider)",
+        "help": "AI prompt parser powered by Google Gemini (gemini-2.0-flash). Generous free tier.",
+        "signup_url": "https://aistudio.google.com/app/apikey",
+        "signup_label": "Get a free Gemini API key",
+    },
+    {
+        "key": "OPENAI_API_KEY",
+        "label": "OpenAI API Key (Optional AI Provider)",
+        "help": "AI prompt parser powered by OpenAI (GPT-4o-mini).",
+        "signup_url": "https://platform.openai.com/api-keys",
+        "signup_label": "Get an OpenAI API key",
+    },
+    {
         "key": "ANTHROPIC_API_KEY",
-        "label": "Anthropic API Key",
-        "help": "Needed to understand your route requests (e.g. \"20km hilly loop from downtown\"). Required for the app to plan routes at all.",
+        "label": "Anthropic API Key (Optional AI Provider)",
+        "help": "AI prompt parser powered by Anthropic Claude.",
         "signup_url": "https://console.anthropic.com/settings/keys",
         "signup_label": "Get an Anthropic API key",
     },
@@ -37,8 +51,8 @@ FIELDS = [
     },
     {
         "key": "MAPBOX_API_KEY",
-        "label": "Mapbox API Key (optional)",
-        "help": "Optional secondary routing provider for extra alternates while editing a route. Its free tier requires a card on file even though it won't charge you — skip this if you'd rather not.",
+        "label": "Mapbox API Key (Optional)",
+        "help": "Optional secondary routing provider for extra alternates while editing a route. Its free tier requires a card on file.",
         "signup_url": "https://account.mapbox.com/access-tokens/",
         "signup_label": "Get a Mapbox API key",
     },
