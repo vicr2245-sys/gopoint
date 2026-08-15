@@ -336,6 +336,7 @@ MAP_HTML = """
       document.body.className = (theme === 'dark') ? 'dark-theme' : 'light-theme';
     }
     setTheme('dark');
+    map.on('contextmenu', handleMapContextMenu);
 
     var routeLayers = [];
     var editLayers = [];
@@ -733,6 +734,7 @@ MAP_HTML = """
           lineCap: 'round',
           lineJoin: 'round'
         }).addTo(map);
+        layer.on('contextmenu', handleMapContextMenu);
         routeLayers.push(layer);
         seen[category] = true;
       });
@@ -791,7 +793,10 @@ MAP_HTML = """
     }
 
     function handleMapContextMenu(e) {
-      if (!editMode || !e || !e.latlng) return;
+      if (!e || !e.latlng) return;
+      var hasRoute = (primaryCoords && primaryCoords.length > 0) || (window.lastBestCoords && window.lastBestCoords.length > 0);
+      if (!editMode && !hasRoute) return;
+
       if (e.originalEvent) {
         L.DomEvent.preventDefault(e.originalEvent);
         L.DomEvent.stopPropagation(e.originalEvent);
@@ -813,6 +818,16 @@ MAP_HTML = """
         bridge.setManualFinish(lat, lon);
       };
       content.appendChild(cutBtn);
+
+      var addBtn = document.createElement('button');
+      addBtn.className = 'ctx-menu-btn add';
+      addBtn.innerHTML = '➕ Add Waypoint Here';
+      addBtn.onclick = function() {
+        map.closePopup();
+        var insertIndex = currentViaPoints ? currentViaPoints.length : 0;
+        bridge.addWaypoint(lat, lon, insertIndex);
+      };
+      content.appendChild(addBtn);
 
       if (currentStartPoint) {
         var fuseBtn = document.createElement('button');
@@ -1049,6 +1064,7 @@ MAP_HTML = """
         var layer = L.geoJSON(r.geojson, {
           style: { color: r.color, weight: 5, opacity: r.opacity || 0.85 }
         }).addTo(map);
+        layer.on('contextmenu', handleMapContextMenu);
         layer.bindPopup(r.label);
         routeLayers.push(layer);
         var coords = routeCoordinates(r.geojson);
