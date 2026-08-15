@@ -32,7 +32,24 @@ def _pause_before_exit():
         input("\nPress Enter to exit...")
 
 
+import os
+import ctypes
+from PyQt5.QtGui import QIcon
+
+def get_resource_path(relative_path: str) -> str:
+    """Get absolute path to resource, works for dev and for PyInstaller."""
+    if hasattr(sys, '_MEIPASS'):
+        return os.path.join(sys._MEIPASS, relative_path)
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(base_dir, relative_path)
+
 def main():
+    if sys.platform == 'win32':
+        try:
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID('GoPoint.AI.RoutePlanner.1.0')
+        except Exception:
+            pass
+
     providers, geocode_providers = get_configured_providers()
 
     # providers is never empty now (OSRM needs no key and is always
@@ -47,7 +64,16 @@ def main():
     engine = RouteEngine(providers, geocode_providers)
 
     app = QApplication(sys.argv)
+    
+    icon_path = get_resource_path("gopoint_icon.ico")
+    if not os.path.exists(icon_path):
+        icon_path = get_resource_path("gopoint_icon.png")
+    if os.path.exists(icon_path):
+        app.setWindowIcon(QIcon(icon_path))
+
     window = MainWindow(engine, startup_notice=startup_notice)
+    if os.path.exists(icon_path):
+        window.setWindowIcon(QIcon(icon_path))
     window.show()
     sys.exit(app.exec_())
 

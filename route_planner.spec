@@ -35,7 +35,10 @@ from PyInstaller.utils.hooks import collect_all
 
 block_cipher = None
 
-datas = []
+datas = [
+    ('gopoint_icon.ico', '.'),
+    ('gopoint_icon.png', '.'),
+]
 binaries = []
 hiddenimports = [
     'anthropic',
