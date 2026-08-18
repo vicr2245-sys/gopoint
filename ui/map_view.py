@@ -607,6 +607,13 @@ MAP_HTML = """
           iconAnchor: [17, 12]
         })
       }).addTo(map);
+      if (className === 'start' || className === 'loop') {
+        marker.on('click', function(e) {
+          if (e.originalEvent) L.DomEvent.stop(e.originalEvent);
+          var bridge = editBridge || (window.qtChannel ? window.qtChannel.objects.routeEditBridge : null);
+          if (bridge) bridge.fuseStartFinish();
+        });
+      }
       routeLayers.push(marker);
     }
 
@@ -779,8 +786,8 @@ MAP_HTML = """
       if (!primaryCoords || primaryCoords.length < 2) return false;
       var p = [e.latlng.lng, e.latlng.lat];
 
-      // Never treat clicks near the start point (< 45 meters) as cutting the route
-      if (currentStartPoint && distanceMeters([currentStartPoint.lon, currentStartPoint.lat], p) < 45) {
+      // Never treat clicks near the start point (< 60 meters) as cutting the route
+      if (currentStartPoint && distanceMeters([currentStartPoint.lon, currentStartPoint.lat], p) < 60) {
         return false;
       }
 
@@ -807,8 +814,8 @@ MAP_HTML = """
         return;
       }
 
-      // If clicking near start point (< 45 meters), auto-fuse Start & Finish (S/F) to complete loop
-      if (currentStartPoint && distanceMeters([currentStartPoint.lon, currentStartPoint.lat], [e.latlng.lng, e.latlng.lat]) < 45) {
+      // If clicking near start point (< 60 meters), auto-fuse Start & Finish (S/F) to complete loop
+      if (currentStartPoint && distanceMeters([currentStartPoint.lon, currentStartPoint.lat], [e.latlng.lng, e.latlng.lat]) < 60) {
         bridge.fuseStartFinish();
         return;
       }

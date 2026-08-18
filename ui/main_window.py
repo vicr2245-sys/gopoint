@@ -1677,18 +1677,23 @@ class MainWindow(QMainWindow):
             click_idx = min(range(len(pts)), key=lambda i: haversine_distance_m(pts[i].lat, pts[i].lon, lat, lon))
             start_dist = haversine_distance_m(pts[0].lat, pts[0].lon, lat, lon)
 
-            # If clicking near the start point (< 45m or index 0), completing the loop is intended — NOT erasing the route!
-            if click_idx <= 1 or start_dist < 45:
-                self._on_fuse_start_finish()
-                return
-
             cut_pts = pts[:click_idx + 1]
-
-            # Calculate total distance along cut points
             cut_dist_m = sum(
                 haversine_distance_m(cut_pts[i-1].lat, cut_pts[i-1].lon, cut_pts[i].lat, cut_pts[i].lon)
                 for i in range(1, len(cut_pts))
             )
+            total_dist_m = self.best_route.distance_km * 1000.0
+
+            # If click is near the start point (<100m or index in first 15% of points or cut_dist < 500m when total > 1km),
+            # completing the loop is intended — NOT truncating the route down to a stub!
+            if (
+                click_idx <= 2
+                or start_dist < 100
+                or click_idx < len(pts) * 0.15
+                or (cut_dist_m < 500 and total_dist_m > 1000)
+            ):
+                self._on_fuse_start_finish()
+                return
 
             # Calculate elevation gain along cut points
             cut_ele_gain = sum(
@@ -1825,7 +1830,7 @@ class MainWindow(QMainWindow):
 
         idx = min(range(len(cum_dists)), key=lambda i: abs(cum_dists[i] - dist_km))
         pt = self.best_route.points[idx]
-        self.map_view.set_hover_point(pt.lat, pt.lon)
+        self.map_view.pan_to_point(pt.lat, pt.lon)
 
     def _on_playback_progress(self, dist_km: float):
         if self.elevation_chart.isVisible():
@@ -1889,8 +1894,6 @@ class MainWindow(QMainWindow):
         if not self.current_request:
             return
         if self.current_request.start_location == "Manual Start":
-            # A delayed generic bridge event must never turn a waypoint into
-            # a start point after a new manual-create session begins.
             return
 
         # If extending an open route (not a closed loop), the new click point becomes the NEW finish location!
@@ -1910,15 +1913,8 @@ class MainWindow(QMainWindow):
         self._ensure_via_points_seeded()
         via_points = list(self.current_request.via_points)
 
-        # If index is at or beyond the end of via_points (extending the route), append to the end
-        if index >= len(via_points):
-            via_points.append((lat, lon))
-        elif self.best_route and self.best_route.points and len(via_points) > 0:
-            insert_idx = self._find_best_waypoint_insert_index(lat, lon, via_points)
-            via_points.insert(insert_idx, (lat, lon))
-        else:
-            insert_idx = max(0, min(index, len(via_points)))
-            via_points.insert(insert_idx, (lat, lon))
+        # Always append new waypoints clicked on map at the true end of via_points
+        via_points.append((lat, lon))
         self._start_route_edit(via_points, "Replanning through the new waypoint...")
 
     def _on_waypoint_moved(self, old_index: int, new_index: int, lat: float, lon: float):
