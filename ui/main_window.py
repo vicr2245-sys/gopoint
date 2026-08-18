@@ -1664,7 +1664,6 @@ class MainWindow(QMainWindow):
         self.current_request.end_location = f"{lat:.6f},{lon:.6f}"
         self.current_request.is_loop = False
         self.current_request.auto_close_loop = False
-        self.map_view.set_finish_point(None, None)
 
         if self.best_route and self.best_route.points:
             from core.geo import haversine_distance_m
@@ -1683,28 +1682,39 @@ class MainWindow(QMainWindow):
 
             # Calculate elevation gain along cut points
             cut_ele_gain = sum(
-                max(0, cut_pts[i].ele - cut_pts[i-1].ele)
+                max(0, cut_pts[i].elevation_m - cut_pts[i-1].elevation_m)
                 for i in range(1, len(cut_pts))
-                if cut_pts[i].ele is not None and cut_pts[i-1].ele is not None
+                if cut_pts[i].elevation_m is not None and cut_pts[i-1].elevation_m is not None
             )
 
             # Trim surface segments to fit within the cut point index
             cut_surfaces = []
             for seg in getattr(self.best_route, "surface_segments", []):
-                if seg.start < click_idx:
+                if seg.start_index < click_idx:
                     cut_surfaces.append(SurfaceSegment(
-                        start=seg.start,
-                        end=min(seg.end, click_idx),
+                        start_index=seg.start_index,
+                        end_index=min(seg.end_index, click_idx),
                         category=seg.category
                     ))
 
+            # Build GeoJSON geometry so Leaflet can render the cut route
+            cut_geojson = {
+                "type": "LineString",
+                "coordinates": [[pt.lon, pt.lat] for pt in cut_pts]
+            }
+
+            orig_dist = max(0.001, self.best_route.distance_km)
+            ratio = (cut_dist_m / 1000.0) / orig_dist
+
             cut_route = NormalizedRoute(
-                provider_name=self.best_route.provider_name,
+                provider=self.best_route.provider,
                 distance_km=cut_dist_m / 1000.0,
-                duration_s=int(self.best_route.duration_s * (cut_dist_m / max(1.0, self.best_route.distance_km * 1000.0))),
+                duration_min=self.best_route.duration_min * ratio,
                 elevation_gain_m=cut_ele_gain,
                 points=cut_pts,
                 surface_segments=cut_surfaces,
+                geometry_geojson=cut_geojson,
+                surface_composition=getattr(self.best_route, "surface_composition", {}),
             )
 
             # Extract via_points that sit before the cut location
