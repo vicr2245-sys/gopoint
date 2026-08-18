@@ -1453,6 +1453,11 @@ class MainWindow(QMainWindow):
         self.current_routes = all_routes
         self.best_route = best
         self.current_request = request
+
+        if best and best.points and request:
+            start_pt = best.points[0]
+            request.start_location = f"{start_pt.lat:.6f},{start_pt.lon:.6f}"
+
         self.loading_spinner.stop()
         self.export_button.setEnabled(True)
         self.save_button.setEnabled(True)
@@ -1935,6 +1940,9 @@ class MainWindow(QMainWindow):
     def _start_route_edit(self, via_points: list[tuple[float, float]], status: str):
         if not self.current_request:
             return
+        if self.best_route and self.best_route.points:
+            start_pt = self.best_route.points[0]
+            self.current_request.start_location = f"{start_pt.lat:.6f},{start_pt.lon:.6f}"
         if self.best_route and self.current_routes:
             self.undo_stack.append((
                 deepcopy(self.current_routes),
