@@ -1830,7 +1830,7 @@ class MainWindow(QMainWindow):
 
         idx = min(range(len(cum_dists)), key=lambda i: abs(cum_dists[i] - dist_km))
         pt = self.best_route.points[idx]
-        self.map_view.pan_to_point(pt.lat, pt.lon)
+        self.map_view.set_hover_point(pt.lat, pt.lon)
 
     def _on_playback_progress(self, dist_km: float):
         if self.elevation_chart.isVisible():

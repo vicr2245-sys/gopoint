@@ -1024,6 +1024,7 @@ MAP_HTML = """
       if (!hoverMarker) {
         hoverMarker = L.marker(latLng, {
           interactive: false,
+          zIndexOffset: 3000,
           icon: L.divIcon({
             className: 'hover-point-marker',
             iconSize: [14, 14],
