@@ -1841,6 +1841,20 @@ class MainWindow(QMainWindow):
             # a start point after a new manual-create session begins.
             return
 
+        # If extending an open route (not a closed loop), the new click point becomes the NEW finish location!
+        if not self.current_request.is_loop or self.current_request.end_location:
+            if self.best_route and self.best_route.points:
+                last_pt = self.best_route.points[-1]
+                if not self.current_request.via_points or (
+                    abs(self.current_request.via_points[-1][0] - last_pt.lat) > 0.0001
+                    or abs(self.current_request.via_points[-1][1] - last_pt.lon) > 0.0001
+                ):
+                    self.current_request.via_points.append((last_pt.lat, last_pt.lon))
+
+            self.current_request.end_location = f"{lat:.6f},{lon:.6f}"
+            self._start_route_edit(self.current_request.via_points, "Extending route to new finish point...")
+            return
+
         self._ensure_via_points_seeded()
         via_points = list(self.current_request.via_points)
 

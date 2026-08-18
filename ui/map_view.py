@@ -516,6 +516,7 @@ MAP_HTML = """
         surfaceLegend = null;
       }
       setStartPoint(null, null);
+      setFinishPoint(null, null);
     }
 
     function clearEditLayers() {
@@ -734,6 +735,7 @@ MAP_HTML = """
           lineCap: 'round',
           lineJoin: 'round'
         }).addTo(map);
+        layer.on('click', addWaypointFromMapClick);
         layer.on('contextmenu', handleMapContextMenu);
         routeLayers.push(layer);
         seen[category] = true;
@@ -773,23 +775,47 @@ MAP_HTML = """
       addPointMarker(finish, 'F', color, 'finish');
     }
 
+    function isClickNearRoute(e) {
+      if (!primaryCoords || primaryCoords.length < 2) return false;
+      var p = [e.latlng.lng, e.latlng.lat];
+      for (var i = 0; i < primaryCoords.length - 1; i++) {
+        var a = primaryCoords[i];
+        var b = primaryCoords[i + 1];
+        var proj = projectPointToSegment(p, a, b);
+        var d = distanceMeters(p, proj);
+        if (d < 35) {
+          return true;
+        }
+      }
+      return false;
+    }
+
     function addWaypointFromMapClick(e) {
       var bridge = editBridge || (window.qtChannel ? window.qtChannel.objects.routeEditBridge : null);
       if (!editMode || !e || !e.latlng) return;
-      if (bridge) {
-        if (createMode) {
-          createMode = false;
-          bridge.setManualStart(e.latlng.lat, e.latlng.lng);
-          return;
-        }
-        // If clicking directly on start point (< 20 meters), auto-fuse Start & Finish (S/F)
-        if (currentStartPoint && distanceMeters([currentStartPoint.lon, currentStartPoint.lat], [e.latlng.lng, e.latlng.lat]) < 20) {
-          bridge.fuseStartFinish();
-          return;
-        }
-        var insertIndex = currentViaPoints ? currentViaPoints.length : 0;
-        bridge.addWaypoint(e.latlng.lat, e.latlng.lng, insertIndex);
+      if (!bridge) return;
+
+      if (createMode) {
+        createMode = false;
+        bridge.setManualStart(e.latlng.lat, e.latlng.lng);
+        return;
       }
+
+      // If clicking near start point (< 20 meters), auto-fuse Start & Finish (S/F)
+      if (currentStartPoint && distanceMeters([currentStartPoint.lon, currentStartPoint.lat], [e.latlng.lng, e.latlng.lat]) < 20) {
+        bridge.fuseStartFinish();
+        return;
+      }
+
+      // If clicking directly ON the existing route line, CUT the route at this location!
+      if (isClickNearRoute(e)) {
+        bridge.setManualFinish(e.latlng.lat, e.latlng.lng);
+        return;
+      }
+
+      // Otherwise (clicking blank map space), extend the route from the finish point
+      var insertIndex = currentViaPoints ? currentViaPoints.length : 0;
+      bridge.addWaypoint(e.latlng.lat, e.latlng.lng, insertIndex);
     }
 
     function handleMapContextMenu(e) {
@@ -1064,6 +1090,7 @@ MAP_HTML = """
         var layer = L.geoJSON(r.geojson, {
           style: { color: r.color, weight: 5, opacity: r.opacity || 0.85 }
         }).addTo(map);
+        layer.on('click', addWaypointFromMapClick);
         layer.on('contextmenu', handleMapContextMenu);
         layer.bindPopup(r.label);
         routeLayers.push(layer);
