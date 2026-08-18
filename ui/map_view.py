@@ -778,6 +778,12 @@ MAP_HTML = """
     function isClickNearRoute(e) {
       if (!primaryCoords || primaryCoords.length < 2) return false;
       var p = [e.latlng.lng, e.latlng.lat];
+
+      // Never treat clicks near the start point (< 45 meters) as cutting the route
+      if (currentStartPoint && distanceMeters([currentStartPoint.lon, currentStartPoint.lat], p) < 45) {
+        return false;
+      }
+
       for (var i = 0; i < primaryCoords.length - 1; i++) {
         var a = primaryCoords[i];
         var b = primaryCoords[i + 1];
@@ -801,13 +807,13 @@ MAP_HTML = """
         return;
       }
 
-      // If clicking near start point (< 20 meters), auto-fuse Start & Finish (S/F)
-      if (currentStartPoint && distanceMeters([currentStartPoint.lon, currentStartPoint.lat], [e.latlng.lng, e.latlng.lat]) < 20) {
+      // If clicking near start point (< 45 meters), auto-fuse Start & Finish (S/F) to complete loop
+      if (currentStartPoint && distanceMeters([currentStartPoint.lon, currentStartPoint.lat], [e.latlng.lng, e.latlng.lat]) < 45) {
         bridge.fuseStartFinish();
         return;
       }
 
-      // If clicking directly ON the existing route line, CUT the route at this location!
+      // If clicking directly ON the existing route line (away from start point), CUT the route at this location!
       if (isClickNearRoute(e)) {
         bridge.setManualFinish(e.latlng.lat, e.latlng.lng);
         return;

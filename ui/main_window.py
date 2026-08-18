@@ -1670,7 +1670,12 @@ class MainWindow(QMainWindow):
             pts = self.best_route.points
             # Find the index of the point on the route closest to the cut click
             click_idx = min(range(len(pts)), key=lambda i: haversine_distance_m(pts[i].lat, pts[i].lon, lat, lon))
-            click_idx = max(1, click_idx)
+            start_dist = haversine_distance_m(pts[0].lat, pts[0].lon, lat, lon)
+
+            # If clicking near the start point (< 45m or index 0), completing the loop is intended — NOT erasing the route!
+            if click_idx <= 1 or start_dist < 45:
+                self._on_fuse_start_finish()
+                return
 
             cut_pts = pts[:click_idx + 1]
 
