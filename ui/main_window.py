@@ -2004,7 +2004,8 @@ class MainWindow(QMainWindow):
             return
 
         self.undo_stack.clear()
-        self._apply_route_state([route], route, request, warnings=[])
+        self.edit_button.setChecked(False)
+        self._apply_route_state([route], route, request, warnings=[], fit_bounds=True)
         self.status_label.setText("Loaded saved route. Edit or export it like any planned route.")
         self.status_label.setVisible(True)
 
