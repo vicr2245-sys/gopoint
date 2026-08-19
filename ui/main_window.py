@@ -1768,55 +1768,15 @@ class MainWindow(QMainWindow):
         self.current_request.end_location = None
         self.map_view.set_finish_point(None, None)
 
-        slat, slon = None, None
-        if self.current_request.start_location and self.current_request.start_location != "Manual Start":
-            parts = self.current_request.start_location.split(",")
-            try:
-                slat, slon = float(parts[0]), float(parts[1])
-                self.map_view.set_start_point(slat, slon, "S/F")
-            except Exception:
-                pass
-
+        # Pin start_location to exact coordinates of start point
         if self.best_route and self.best_route.points:
-            pts = list(self.best_route.points)
-            start_pt = pts[0]
-            last_pt = pts[-1]
-            from core.geo import haversine_distance_m
-            if haversine_distance_m(last_pt.lat, last_pt.lon, start_pt.lat, start_pt.lon) > 5:
-                pts.append(start_pt)
+            start_pt = self.best_route.points[0]
+            self.current_request.start_location = f"{start_pt.lat:.6f},{start_pt.lon:.6f}"
+            self.map_view.set_start_point(start_pt.lat, start_pt.lon, "S/F")
+            self._ensure_via_points_seeded()
 
-            fused_geojson = {
-                "type": "LineString",
-                "coordinates": [[pt.lon, pt.lat] for pt in pts]
-            }
-
-            fused_dist_m = sum(
-                haversine_distance_m(pts[i-1].lat, pts[i-1].lon, pts[i].lat, pts[i].lon)
-                for i in range(1, len(pts))
-            )
-
-            fused_route = NormalizedRoute(
-                provider=self.best_route.provider,
-                distance_km=fused_dist_m / 1000.0,
-                duration_min=self.best_route.duration_min,
-                elevation_gain_m=self.best_route.elevation_gain_m,
-                points=pts,
-                surface_segments=getattr(self.best_route, "surface_segments", []),
-                geometry_geojson=fused_geojson,
-                surface_composition=getattr(self.best_route, "surface_composition", {}),
-            )
-            self.best_route = fused_route
-            self.current_routes = [fused_route]
-            self._apply_route_state([fused_route], fused_route, self.current_request, fit_bounds=False)
-            self.status_label.setText("Start and Finish fused into a loop (S/F). Route completed!")
-            self.status_label.setVisible(True)
-            return
-
-        if slat is not None and slon is not None:
-            self._start_route_edit(self.current_request.via_points, "Fusing start and finish into a loop (S/F)...")
-
-        self.status_label.setText("Start and Finish fused into a loop (S/F).")
-        self.status_label.setVisible(True)
+        # Let the routing engine (ORS/OSRM) compute the real road-network path for the closing loop segment
+        self._start_route_edit(self.current_request.via_points, "Fusing start and finish into a loop (S/F)...")
 
     def _on_elevation_hover(self, dist_km: Optional[float]):
         if dist_km is None or not self.best_route or not self.best_route.points:
